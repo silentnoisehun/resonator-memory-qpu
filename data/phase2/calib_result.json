@@ -1,0 +1,20 @@
+{
+  "verdict": "VALID",
+  "invalid_reasons": [],
+  "source": "job saját kalibrációs karjai a raw_counts.json-ból",
+  "job_id": "dbq9vq7v5hds73dfm7kg",
+  "T1_us": 381.68894758697127,
+  "T2_us": 381.93991549326404,
+  "eps": 0.019,
+  "T1_ci_us": [
+    362.2783303316323,
+    402.1125953557345
+  ],
+  "T2_ci_us": [
+    329.74532265409874,
+    443.4664727718545
+  ],
+  "ci_level": "99% (bootstrap percentilis 0.5–99.5)",
+  "T1_chi2_red": 0.9100471140592675,
+  "T2_chi2_red": 0.9203498385211928
+}

@@ -1,0 +1,89 @@
+{
+  "verdict": "TEXTBOOK",
+  "R_rounds": [
+    0,
+    1,
+    2,
+    4,
+    8
+  ],
+  "err_active": [
+    0.0035,
+    0.0085,
+    0.0115,
+    0.0215,
+    0.0305
+  ],
+  "err_single": [
+    0.039,
+    0.1375,
+    0.2145,
+    0.316,
+    0.499
+  ],
+  "p_value": 0.0,
+  "significant": true,
+  "job_id": "dbqa1r1abdes73fnslng",
+  "chain": [
+    12,
+    13,
+    14,
+    15,
+    19
+  ],
+  "register_used": {
+    "active": "out",
+    "single": "c",
+    "majority": "c"
+  },
+  "tested_branch": "bit=1",
+  "error_rates": {
+    "bit0": {
+      "single": [
+        0.0355,
+        0.032,
+        0.037,
+        0.049,
+        0.066
+      ],
+      "majority": [
+        0.001,
+        0.001,
+        0.0015,
+        0.001,
+        0.002
+      ],
+      "active": [
+        0.001,
+        0.0025,
+        0.0055,
+        0.0045,
+        0.0015
+      ]
+    },
+    "bit1": {
+      "single": [
+        0.039,
+        0.1375,
+        0.2145,
+        0.316,
+        0.499
+      ],
+      "majority": [
+        0.0035,
+        0.028,
+        0.073,
+        0.185,
+        0.4255
+      ],
+      "active": [
+        0.0035,
+        0.0085,
+        0.0115,
+        0.0215,
+        0.0305
+      ]
+    }
+  },
+  "caveat": "A single és majority kar körönként 20 µs várakozást tartalmaz; az aktív kar köreiben nincs ilyen késleltetés (csak CX + mérés + reset + feltételes X), így a karok teljes időtartama nem azonos."
+}
