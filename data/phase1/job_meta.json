@@ -1,0 +1,19 @@
+{
+  "job_id": "dbq9t8mjjaos73agtej0",
+  "backend": "ibm_kingston",
+  "qubit": 13,
+  "shots": 1000,
+  "n_circuits": 114,
+  "plan_sha": "762395c356c677c0eb6030195ebee036a1a67dfe4282809cad686d52155ad305",
+  "pre_shuffle_hash": "3e687415040c55bd54d46d3556c1ae353455e945c49a7f47d800d7f91b9a415e",
+  "snapshot": {
+    "backend": "ibm_kingston",
+    "qubit": 13,
+    "T1": 0.0004126008620052681,
+    "T2": 0.0006647956808813012,
+    "readout_error": 0.001953125,
+    "dt": 4e-09,
+    "snapshot_at": "2026-11-11T16:57:46Z"
+  },
+  "submitted_at": "2026-11-11T16:57:55Z"
+}
