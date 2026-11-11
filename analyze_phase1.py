@@ -14,7 +14,7 @@ Kimenet (felülíródik):
     data/phase1/phase1_result.json
 
 Javítások az eredeti elemzéshez képest (az eredeti, érvénytelen
-ítéletfájlok a git-történetben megmaradnak: 52eef8b, 8d34929):
+ítéletfájlok a git-történetben megmaradnak: ea0fa8d, 7288337):
   a) A kalibrációt a job saját T1 / Hahn / readout karjaiból újraillesztjük
      (nem a korábbi calib_result.json-ból olvassuk). Értelmetlen fit →
      a kalib automatikusan INVALID, és az 1. fázis ítélete is INVALID.
