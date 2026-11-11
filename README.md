@@ -6,6 +6,23 @@ Ingyenes IBM QPU-n teszteli: meddig él egy bit a kvantum-térben, nő-e logarit
 
 ---
 
+## Állapot (lezárva)
+
+Mind a négy fázis lefutott az `ibm_kingston` (Heron r2) gépen, és független ellenőrző a nyers IBM-adatokból, saját kóddal újraszámolta. További QPU-futtatás nincs tervben.
+
+| Fázis | Job ID | Qubit(ek) | Ítélet |
+|---|---|---|---|
+| 1 — log-skála | `dbq9t8mjjaos73agtej0` | q13 | **TEXTBOOK** a javított elemzéssel; az eredeti ítéletfájl INVALID volt |
+| 2 — DD | `dbq9vq7v5hds73dfm7kg` | q13 | **TEXTBOOK** |
+| 3 — BLP backflow | `dbqa0lmjjaos73agtib0` | q149 / q150 | backflow-jel megerősítve (p < 0,0005) — **TEXTBOOK** |
+| 1b — repetition code | `dbqa1r1abdes73fnslng` | [12,13,14,15,19] | **TEXTBOOK** (R=8: hiba 0,499 → 0,030) |
+
+A 3. fázis backflow-jele tankönyvi fizika — a környezetbe írt információ mérhető visszaáramlása —, **nem anomália és nem új fizika**.
+
+**Auditálhatóság:** mind a négy fázis újraszámolható a repóból, QPU és token nélkül: `python3 analyze_phase1.py` (és `…phase2.py`, `…phase3.py`, `…phase1b.py`). A 2., 3. és 1b fázis nyers counts-ait a független ellenőrzés kérte le az IBM API-ból. Helyesbítések, ismert korlátok és a régi commit-üzenetek hibás job-azonosítói: [`CORRECTIONS.md`](CORRECTIONS.md) — vita esetén a `job_meta.json` a mérvadó.
+
+---
+
 ## Modulok
 
 ```

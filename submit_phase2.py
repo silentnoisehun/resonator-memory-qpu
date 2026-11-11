@@ -2,7 +2,7 @@
 submit_phase2.py — 2. fázis DD regeneráció, éles QPU beküldés
 ibm_kingston, qubit 13
 """
-import sys, json, time, hashlib, logging
+import os, sys, json, time, hashlib, logging
 import numpy as np
 from pathlib import Path
 
@@ -20,7 +20,9 @@ from analysis import (fit_T1, fit_T2_hahn, fit_readout_error, judge_calib,
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
-TOKEN   = "fXrTMlExIJMOX8LjhqjtQo-Hpv3-aaxFCXJHW5wK0y_T"
+# A token SOHA nem kerülhet a repóba: környezeti változóból olvassuk.
+# (A korábban ide beégetett token a git-történetben látszik → vissza kell vonni.)
+TOKEN   = os.environ["IBM_QUANTUM_TOKEN"]
 CRN     = "crn:v1:bluemix:public:quantum-computing:us-east:a/850d7f5ad80c4beab980d2b4bdec250d:38cf48ed-daeb-4efb-b709-c8c25dbbbc7a::"
 BACKEND = "ibm_kingston"
 QUBIT   = 13
