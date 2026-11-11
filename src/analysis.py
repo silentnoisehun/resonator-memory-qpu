@@ -40,37 +40,65 @@ def fit_exponential(times_s: np.ndarray,
                     rng_seed: int = 42) -> dict:
     """
     D(t) = a·exp(-t/T) illesztés + bootstrap CI.
-    Visszaad: {T_fit, a_fit, T_ci, a_ci, success}
+    Visszaad: {T_fit, a_fit, T_ci, success}
+
+    AMENDED (2026-11-11 utáni javítás): az illesztés dimenziótlan időben
+    (u = t / t_max) történik. Az eredeti kód másodpercben illesztett
+    (T ~ 1e-4), ahol a curve_fit numerikus Jacobi-lépése a T paraméterre
+    gyakorlatilag nulla volt: az optimalizáló vagy a kezdőértéken ragadt
+    (T2 = t_max/2), vagy elszállt (T1 = 1.65e5 s), és mindkettő
+    "success"-ként, nulla szélességű CI-vel jött vissza.
+    A modell és a súlyozás változatlan; csak az idő egysége más.
     """
-    rng = np.random.default_rng(rng_seed)
+    rng     = np.random.default_rng(rng_seed)
+    times_s = np.asarray(times_s, dtype=float)
+    D_vals  = np.asarray(D_vals, dtype=float)
+    t_scale = float(np.max(times_s))
+    fail = {"T_fit": np.nan, "a_fit": np.nan,
+            "T_ci": (np.nan, np.nan), "a_ci": (np.nan, np.nan),
+            "success": False}
+    if not np.isfinite(t_scale) or t_scale <= 0:
+        return fail
+    u = times_s / t_scale
     try:
-        popt, pcov = curve_fit(_exp_decay, times_s, D_vals,
-                               p0=[D_vals[0] + 1e-6, times_s[-1] / 2],
+        popt, pcov = curve_fit(_exp_decay, u, D_vals,
+                               p0=[D_vals[0] + 1e-6, 0.5],
                                sigma=D_errs + 1e-9, absolute_sigma=True,
                                maxfev=5000)
-        a_fit, T_fit = popt
+        a_fit, Tu_fit = popt
     except Exception:
-        return {"T_fit": np.nan, "a_fit": np.nan,
-                "T_ci": (np.nan, np.nan), "a_ci": (np.nan, np.nan),
-                "success": False}
+        return fail
+    if not (np.isfinite(a_fit) and np.isfinite(Tu_fit)):
+        return fail
 
-    # Bootstrap
+    # Bootstrap (parametrikus: Gauss-zaj a mért pontokon, ugyanaz a modell
+    # ÉS ugyanaz a súlyozás, mint a fő illesztésben — az eredeti kód a
+    # bootstrap-illesztéseket súlyozatlanul futtatta, így a T1-nél a
+    # pontbecslés és a CI két különböző becslőből származott volna.
+    # Egyenletes hibáknál (D-illesztések, Hahn) ez nem változtat semmit.)
     T_boots = []
     for _ in range(bootstrap_n):
         D_boot = D_vals + rng.normal(0, D_errs + 1e-9)
         try:
-            po, _ = curve_fit(_exp_decay, times_s, D_boot,
-                              p0=[a_fit, T_fit], maxfev=2000)
+            po, _ = curve_fit(_exp_decay, u, D_boot,
+                              p0=[a_fit, Tu_fit],
+                              sigma=D_errs + 1e-9, absolute_sigma=True,
+                              maxfev=2000)
             T_boots.append(po[1])
         except Exception:
-            T_boots.append(T_fit)
+            T_boots.append(Tu_fit)
 
-    T_boots = np.array(T_boots)
+    T_boots = np.array(T_boots) * t_scale
     T_ci    = (float(np.percentile(T_boots, 0.5)),
                float(np.percentile(T_boots, 99.5)))
 
-    return {"T_fit": float(T_fit), "a_fit": float(a_fit),
-            "T_ci": T_ci, "success": True}
+    resid    = (D_vals - _exp_decay(u, a_fit, Tu_fit)) / (D_errs + 1e-9)
+    dof      = max(1, len(D_vals) - 2)
+    chi2_red = float(np.sum(resid ** 2) / dof)
+
+    return {"T_fit": float(Tu_fit * t_scale), "a_fit": float(a_fit),
+            "T_ci": T_ci, "t_max": t_scale, "chi2_red": chi2_red,
+            "success": True}
 
 
 def t_readable_from_fit(a_fit: float, T_fit: float, D_min: float = 0.1) -> float:
@@ -84,7 +112,7 @@ def t_readable_from_fit(a_fit: float, T_fit: float, D_min: float = 0.1) -> float
 
 def fit_T1(delays_s: np.ndarray, counts_list: List[dict],
            shots: int) -> dict:
-    """T1 illesztés: P(1) = exp(-t/T1)"""
+    """T1 illesztés a P(1) lecsengésre: P(1)(t) = a·exp(-t/T1), binomiális hibákkal."""
     p1 = np.array([c.get("1", 0) / shots for c in counts_list])
     p1 = np.clip(p1, 1e-6, 1 - 1e-6)
     err = np.sqrt(p1 * (1 - p1) / shots)
@@ -96,10 +124,16 @@ def fit_T1(delays_s: np.ndarray, counts_list: List[dict],
 
 def fit_T2_hahn(delays_s: np.ndarray, counts_list: List[dict],
                 shots: int) -> dict:
-    """T2 Hahn-echo illesztés: ⟨X⟩ = exp(-t/T2)"""
+    """
+    T2 Hahn-echo illesztés: ⟨X⟩(t) = a·exp(-t/T2).
+
+    AMENDED: az előjeles ⟨X⟩-re illesztünk. Az eredeti |⟨X⟩| a lecsengés
+    farkán (ahol ⟨X⟩ a zajon belül 0) felfelé torzít, mert a negatív
+    zajt pozitívba hajtja → szisztematikusan hosszabb T2.
+    """
     xvals = np.array([counts_to_expectation(c, shots) for c in counts_list])
     err   = np.ones(len(xvals)) / np.sqrt(shots)
-    res   = fit_exponential(delays_s, np.abs(xvals), err)
+    res   = fit_exponential(delays_s, xvals, err)
     res["T2"] = res.pop("T_fit")
     res["T2_ci"] = res.pop("T_ci")
     return res
@@ -113,17 +147,64 @@ def fit_readout_error(counts_0: dict, counts_1: dict, shots: int) -> dict:
     return {"readout_error": eps, "P10": p10, "P01": p01}
 
 
-def judge_calib(T1_res: dict, T2_res: dict, tol_pct: float = 15.0) -> str:
-    """VALID / INVALID a kalibrációra."""
-    if not T1_res.get("success") or not T2_res.get("success"):
-        return "INVALID"
+def fit_sanity(T: float, T_ci, t_max: Optional[float]) -> List[str]:
+    """
+    Értelmességi ellenőrzés egy időállandó-illesztésre.
+    Üres lista = rendben; különben az okok listája.
+    """
+    problems = []
+    try:
+        lo, hi = float(T_ci[0]), float(T_ci[1])
+    except Exception:
+        return ["CI hiányzik"]
+    if not (np.isfinite(T) and np.isfinite(lo) and np.isfinite(hi)):
+        return ["nem véges érték (NaN/inf)"]
+    if T <= 0:
+        problems.append("T <= 0")
+    if not (hi > lo):
+        problems.append("nulla szélességű CI (a fit nem mozdult / nem konvergált)")
+    if not (lo <= T <= hi):
+        problems.append("a pontbecslés a saját CI-jén kívül esik")
+    if t_max is not None and t_max > 0 and T > 10.0 * t_max:
+        problems.append("T a fittelési tartományon kívül (> 10 × leghosszabb delay)")
+    return problems
+
+
+def judge_calib_detail(T1_res: dict, T2_res: dict,
+                       tol_pct: float = 15.0) -> Tuple[str, List[str]]:
+    """
+    VALID / INVALID a kalibrációra + az INVALID okai.
+
+    AMENDED: az eredeti változat csak a relatív CI-szélességet nézte, így a
+    nulla szélességű CI (0% < 15%) és a T1 = 1.65e11 µs is VALID-ot kapott.
+    Most előbb értelmességi ellenőrzés fut (fit_sanity); ha bármelyik
+    illesztés értelmetlen, a kalibráció automatikusan INVALID.
+    """
+    reasons = []
+    if not T1_res.get("success"):
+        reasons.append("T1: az illesztés nem konvergált")
+    if not T2_res.get("success"):
+        reasons.append("T2: az illesztés nem konvergált")
+    if reasons:
+        return "INVALID", reasons
     T1, T1_ci = T1_res["T1"], T1_res["T1_ci"]
     T2, T2_ci = T2_res["T2"], T2_res["T2_ci"]
-    T1_err = (T1_ci[1] - T1_ci[0]) / (2 * T1 + 1e-12) * 100
-    T2_err = (T2_ci[1] - T2_ci[0]) / (2 * T2 + 1e-12) * 100
-    if T1_err < tol_pct and T2_err < tol_pct:
-        return "VALID"
-    return "INVALID"
+    reasons += [f"T1: {r}" for r in fit_sanity(T1, T1_ci, T1_res.get("t_max"))]
+    reasons += [f"T2: {r}" for r in fit_sanity(T2, T2_ci, T2_res.get("t_max"))]
+    if reasons:
+        return "INVALID", reasons
+    T1_err = (T1_ci[1] - T1_ci[0]) / (2 * T1) * 100
+    T2_err = (T2_ci[1] - T2_ci[0]) / (2 * T2) * 100
+    if T1_err >= tol_pct:
+        reasons.append(f"T1: CI fél-szélesség {T1_err:.1f}% >= {tol_pct}%")
+    if T2_err >= tol_pct:
+        reasons.append(f"T2: CI fél-szélesség {T2_err:.1f}% >= {tol_pct}%")
+    return ("INVALID" if reasons else "VALID"), reasons
+
+
+def judge_calib(T1_res: dict, T2_res: dict, tol_pct: float = 15.0) -> str:
+    """VALID / INVALID a kalibrációra (ld. judge_calib_detail)."""
+    return judge_calib_detail(T1_res, T2_res, tol_pct)[0]
 
 
 # ─── 1. fázis ─────────────────────────────────────────────────────────────────
@@ -165,12 +246,20 @@ def judge_phase1(theta_degs: List[float],
     TEXTBOOK: minden t_olv a logaritmikus jóslat 99% CI-jén belül.
     ANOMALY: ≥2 θ-nál szignifikánsan nagyobb t_olv VAGY
              T_fit > T2_calib (Holm-korrektált p < 0.01).
+
+    AMENDED: in_band akkor igaz, ha a [ci_low, ci_high] sáv a mért ÉS a
+    jósolt t_olv-t is tartalmazza. Az eredeti kód csak a mért értéket
+    nézte; a QPU-elemzésben a sáv a mért érték saját bootstrap CI-je, így
+    a feltétel tautológia volt (a jóslat szóba sem került), és in_band
+    akkor is true lett, amikor a jóslat a CI-n kívül esett.
+    (A dryrunban a sáv a jóslat körüli ±30%, ott a mért értéket teszteli —
+    az új feltétel mindkét használatot helyesen kezeli.)
     """
-    in_band    = [lo <= m <= hi for m, lo, hi in
-                  zip(t_olv_meas, ci_low, ci_high)]
+    in_band    = [bool(lo <= m <= hi and lo <= p <= hi) for m, p, lo, hi in
+                  zip(t_olv_meas, t_olv_pred, ci_low, ci_high)]
     # T_fit vs T2_calib egyoldali teszt: H0: T_fit <= T2
     # Közelítés: ha T_fit - T2 > 0 és a CI alsó határa > T2_calib → sig
-    t_anomaly  = [T_f > T2_calib for T_f in T2_fit_list]
+    t_anomaly  = [bool(T_f > T2_calib) for T_f in T2_fit_list]
     n_t_anom   = sum(t_anomaly)
     n_out      = sum(not b for b in in_band)
 

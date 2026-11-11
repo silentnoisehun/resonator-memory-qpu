@@ -1,7 +1,7 @@
 """
 fetch_results.py — Lekéri a job eredményét és menti raw_counts.json-ba
 """
-import sys, json, time
+import os, sys, json, time
 import numpy as np
 from pathlib import Path
 
@@ -9,7 +9,9 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from qiskit_ibm_runtime import QiskitRuntimeService
 
-TOKEN   = "***REMOVED***"
+# A token SOHA nem kerülhet a repóba: környezeti változóból olvassuk.
+# (A korábban ide beégetett token a git-történetben látszik → vissza kell vonni.)
+TOKEN   = os.environ["IBM_QUANTUM_TOKEN"]
 CRN     = "crn:v1:bluemix:public:quantum-computing:us-east:a/850d7f5ad80c4beab980d2b4bdec250d:38cf48ed-daeb-4efb-b709-c8c25dbbbc7a::"
 DATA_DIR = Path("data/phase1")
 

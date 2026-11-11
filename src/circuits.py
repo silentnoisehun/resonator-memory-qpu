@@ -182,8 +182,10 @@ def build_phase2_circuits(qubit: int, N_list: List[int],
 RESET_DURATION_DT: int = 1500
 """
 Tipikus reset műveleti idő IBM Heron r2 backenden: ~1500 dt (≈ 333 ns).
-Ezt a konstanst a qubitválasztáskor a backend snapshot-ból kell felülírni
-(ha elérhető: backend_props['reset_duration_dt']).
+Ez csak TARTALÉK alapérték: a futtató kód (submit_phase3.py) a
+run.get_reset_duration_dt(backend, qubit_E) hívással a backend Target-jéből
+olvassa ki a tényleges reset-időtartamot, és azt adja át az áramkör-építőnek;
+ez a konstans csak akkor érvényes, ha a backend nem közöl ilyen adatot.
 A két karban azonos az összes mélység, ha minden lépésben:
   - kontroll kar: qc.reset(E)                  → ~RESET_DURATION_DT
   - csatolt kar:  qc.delay(RESET_DURATION_DT)  → azonos hossz, E szabadon fejlődik
