@@ -2,7 +2,7 @@
 submit_phase3.py — 3. fázis nem-markovi visszafolyás, éles QPU
 Qubitpár: ibm_kingston, legjobb szomszédos pár (score alapján)
 """
-import sys, json, time, hashlib, logging
+import os, sys, json, time, hashlib, logging
 import numpy as np
 from pathlib import Path
 
@@ -16,10 +16,13 @@ from circuits import build_phase3_all, delay_dt, RESET_DURATION_DT
 from plan import Plan, shuffle_circuits
 from analysis import (blp_measure, judge_phase3, print_verdict,
                       counts_to_expectation, D_from_counts)
+from run import get_reset_duration_dt
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
-TOKEN   = "***REMOVED***"
+# A token SOHA nem kerülhet a repóba: környezeti változóból olvassuk.
+# (A korábban ide beégetett token a git-történetben látszik → vissza kell vonni.)
+TOKEN   = os.environ["IBM_QUANTUM_TOKEN"]
 CRN     = "crn:v1:bluemix:public:quantum-computing:us-east:a/850d7f5ad80c4beab980d2b4bdec250d:38cf48ed-daeb-4efb-b709-c8c25dbbbc7a::"
 BACKEND = "ibm_kingston"
 SHOTS   = cfg.shots
@@ -55,6 +58,22 @@ for q0, q1 in cmap:
 Q_S, Q_E = best_pair
 print(f"[select] Legjobb pár: q{Q_S}-q{Q_E}  score={best_s*1e6:.2f}")
 
+# Reset-időtartam: a backend Target-jéből, a környezet-qubitre (E), mert a
+# kontroll karban azon fut a reset, a csatolt karban azon áll a kompenzáló delay.
+# Ha a backend nem közli, marad az alapérték (RESET_DURATION_DT = 1500 dt);
+# a forrás a pillanatképbe kerül, hogy utólag látszódjon, melyik volt.
+#
+# MEGJEGYZÉS a lefutott jobhoz (dbqa0lmjjaos73agtib0): az a futás még a
+# fix 1500 dt alapértékkel készült, és a data/phase3/snapshot.json-ban lévő
+# "reset_duration_dt": 1500 is ez a konstans, NEM a backendről kiolvasott
+# érték (a tényleges reset-időtartam abban a pillanatképben nincs rögzítve).
+_reset_dt_backend = get_reset_duration_dt(backend, Q_E)
+if _reset_dt_backend is not None:
+    RESET_DT, RESET_DT_SOURCE = _reset_dt_backend, "backend.target"
+else:
+    RESET_DT, RESET_DT_SOURCE = RESET_DURATION_DT, "default (backend nem közölte)"
+print(f"[reset] időtartam: {RESET_DT} dt  (forrás: {RESET_DT_SOURCE})")
+
 qp_s = backend.qubit_properties(Q_S)
 qp_e = backend.qubit_properties(Q_E)
 snapshot = {
@@ -62,7 +81,8 @@ snapshot = {
     "T1_S": qp_s.t1, "T2_S": qp_s.t2,
     "T1_E": qp_e.t1, "T2_E": qp_e.t2,
     "readout_error_S": props_b.readout_error(Q_S),
-    "dt": DT, "reset_duration_dt": RESET_DURATION_DT,
+    "dt": DT, "reset_duration_dt": RESET_DT,
+    "reset_duration_source": RESET_DT_SOURCE,
     "snapshot_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
 }
 (DATA_DIR / "snapshot.json").write_text(json.dumps(snapshot, indent=2))
@@ -75,7 +95,7 @@ all_circs_raw = build_phase3_all(
     Q_S, Q_E,
     phi=cfg.phase3_coupling_phi_rad,
     k_steps=cfg.phase3_k_steps,
-    reset_duration_dt=RESET_DURATION_DT,
+    reset_duration_dt=RESET_DT,
 )
 pre_hash = hashlib.sha256(
     json.dumps([c.name for c in all_circs_raw]).encode()
