@@ -10,7 +10,7 @@ Sorrend:
   5. Job beküldés
   6. Polling + mentés
 """
-import sys, json, time, hashlib, logging
+import os, sys, json, time, hashlib, logging
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -29,7 +29,9 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 # ── Kapcsolat ────────────────────────────────────────────────────────────────
 
-TOKEN   = "***REMOVED***"
+# A token SOHA nem kerülhet a repóba: környezeti változóból olvassuk.
+# (A korábban ide beégetett token a git-történetben látszik → vissza kell vonni.)
+TOKEN   = os.environ["IBM_QUANTUM_TOKEN"]
 CRN     = "crn:v1:bluemix:public:quantum-computing:us-east:a/850d7f5ad80c4beab980d2b4bdec250d:38cf48ed-daeb-4efb-b709-c8c25dbbbc7a::"
 BACKEND = "ibm_kingston"
 QUBIT   = 13
