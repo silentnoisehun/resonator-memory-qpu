@@ -219,26 +219,28 @@ def dryrun_phase1b(runner: AerRunner, calib: dict) -> dict:
     circs  = build_phase1b_circuits([0, 1, 2], [3, 4], cfg.phase1b_R_rounds)
     counts = run_circuits(runner, circs)
 
-    # Egyszerűsített: err arány közelítés per R
+    # Circuit sorrend (build_phase1b_circuits alapján):
+    # bit=0: single[0..n_R-1], majority[n_R..2n_R-1], active[2n_R..3n_R-1]
+    # bit=1: single[3n_R..4n_R-1], majority[4n_R..5n_R-1], active[5n_R..6n_R-1]
     n_R = len(cfg.phase1b_R_rounds)
-    # circs sorrendja: single (bit0,bit1)×R, majority×R, active×R
     err_single  = []
     err_active  = []
     T1 = calib["T1"]
 
     for i, R in enumerate(cfg.phase1b_R_rounds):
-        # single bit=1 (rosszabb eset)
-        c_single = counts[n_R + i]  # bit=1 single áramkör
+        # single bit=1 (index = 3*n_R + i)
+        c_single = counts[3 * n_R + i]
         p_err    = c_single.get("0", 0) / cfg.shots  # |1⟩ → |0⟩ hiba
         err_single.append(p_err)
 
-        # active correction bit=1
-        c_active = counts[4 * n_R + i]  # active bit=1
-        p_act    = c_active.get("000", c_active.get("0", 0)) / cfg.shots_1b
-        err_active.append(1.0 - p_act)
+        # active_correction bit=1 (index = 5*n_R + i)
+        c_active = counts[5 * n_R + i]
+        # Helyes eredmény "111" ha bit=1; hiba = minden más
+        p_ok  = c_active.get("111", 0) / cfg.shots
+        err_active.append(1.0 - p_ok)
 
     result = judge_phase1b(err_active, err_single,
-                            cfg.phase1b_R_rounds, cfg.shots_1b,
+                            cfg.phase1b_R_rounds, cfg.shots,
                             cfg.phase1b_alpha)
     print_verdict("1b fázis", result)
     return result
@@ -250,7 +252,8 @@ def positive_control(calib: dict):
     """T2 > 2*T1 szimulációval → 2. fázis ANOMALY kell."""
     print("\n══ POZITÍV KONTROLL — elvárás: ANOMALY (T2>2T1) ══")
     runner_imp = AerRunner(MOCK_BACKEND_PROPS_IMPROVED, t2_scale=1.0,
-                            seed=cfg.rng_seed ^ 0xFF)
+                            seed=cfg.rng_seed ^ 0xFF,
+                            force_analytic=True)
     calib_imp  = {**calib,
                   "T2": MOCK_BACKEND_PROPS_IMPROVED["T2"],
                   "T1_ci": (calib["T1"] * 0.9, calib["T1"] * 1.1)}
@@ -269,7 +272,8 @@ def run_all() -> bool:
     print("  QPU REZONÁTOR-MEMÓRIA DRYRUN (analitikus fallback)")
     print("=" * 60)
 
-    runner = AerRunner(MOCK_BACKEND_PROPS, seed=cfg.rng_seed)
+    runner = AerRunner(MOCK_BACKEND_PROPS, seed=cfg.rng_seed,
+                       force_analytic=True)
     calib  = dryrun_phase0(runner)
     r1     = dryrun_phase1(runner, calib)
     r2     = dryrun_phase2(runner, calib)
