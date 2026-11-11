@@ -19,7 +19,7 @@ Mind a négy fázis lefutott az `ibm_kingston` (Heron r2) gépen, és független
 
 A 3. fázis backflow-jele tankönyvi fizika — a környezetbe írt információ mérhető visszaáramlása —, **nem anomália és nem új fizika**.
 
-**Auditálhatóság:** a repóból jelenleg csak az 1. fázis számolható újra (`python3 analyze_phase1.py`); a 2., 3. és 1b fázis `raw_counts.json` fájljai még nincsenek feltöltve, ott az ítélet a független ellenőrzőtől származik. Helyesbítések, hibás job-azonosítók a régi commit-üzenetekben: [`CORRECTIONS.md`](CORRECTIONS.md) — vita esetén a `job_meta.json` a mérvadó.
+**Auditálhatóság:** mind a négy fázis újraszámolható a repóból, QPU és token nélkül: `python3 analyze_phase1.py` (és `…phase2.py`, `…phase3.py`, `…phase1b.py`). A 2., 3. és 1b fázis nyers counts-ait a független ellenőrzés kérte le az IBM API-ból. Helyesbítések, ismert korlátok és a régi commit-üzenetek hibás job-azonosítói: [`CORRECTIONS.md`](CORRECTIONS.md) — vita esetén a `job_meta.json` a mérvadó.
 
 ---
 

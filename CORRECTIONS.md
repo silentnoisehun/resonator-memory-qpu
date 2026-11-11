@@ -24,8 +24,8 @@ Mindegyik job backendje `ibm_kingston`. A `cxh5…` azonosítók egyik
 | Commit | Állítás | Helyesbítés |
 |---|---|---|
 | `52eef8b`, `8d34929` | 1. fázis: TEXTBOOK; kalib VALID | Az akkori ítéletfájl **INVALID** volt (elszállt kalib-fit: T1 = 1,65e11 µs, ε = 0, nulla szélességű CI; a jóslat a pillanatkép T2 = 664,8 µs-ával számolt; az `in_band` tautológia volt). Javított elemzés: `e39606d` — ugyanazokból a nyers adatokból TEXTBOOK. |
-| `d4a6602` | 3. fázis: p = 0,0045 | A független ellenőrzés szerint p < 0,0005 (csatolt BLP = 0,4190, reset-kontroll BLP = 0,0000). A repóból jelenleg nem ellenőrizhető (ld. 4. pont). |
-| `1e54cf8` | 1b: p = 1,17e-71 | A repóból jelenleg nem ellenőrizhető (ld. 4. pont). |
+| `d4a6602` | 3. fázis: p = 0,0045 | A nyers adatokból: 2000 bootstrap-mintából 0 éri el a csatolt BLP-t, azaz p < 0,0005 (ld. 4. pont). |
+| `1e54cf8` | 1b: p = 1,17e-71 | Nem reprodukálható; a p-érték a gépi pontosság alatt van (ld. 4. pont). Az ítélet (TEXTBOOK) egyezik. |
 
 ## 3. 1. fázis — a javított elemzés számai és eltérései
 
@@ -51,20 +51,52 @@ Eltérések a független ellenőrző által közölt számoktól (nem igazított
   `preregistration/` fájlokban rögzítettel. A javítás utólagos (post-hoc).
   (Az `src/circuits.py` SHA-ja már a `b3d6c00` audit-javítás óta eltér.)
 
-## 4. Hiányzó nyers adatok (2., 3., 1b fázis) — NYITOTT
+## 4. Nyers adatok a 2., 3. és 1b fázishoz — PÓTOLVA
 
-A `.gitignore` korábban a teljes `data/` mappát kizárta. Az 1. fázis fájljai
-kényszerítve fel lettek véve, a többi fázisból viszont csak a `job_meta.json`,
-`plan_sealed.json` és `snapshot.json` került fel. **Hiányzik:**
+A `.gitignore` korábban a teljes `data/` mappát kizárta, ezért a 2., 3. és 1b
+fázis `raw_counts.json` és eredményfájljai sosem kerültek fel. A kizárás megszűnt.
 
-- `data/phase2/`: `raw_counts.json`, `calib_result.json`, `phase2_result.json`
-- `data/phase3/`: `raw_counts.json`, `phase3_result.json`
-- `data/phase1b/`: `raw_counts.json`, `phase1b_result.json`
+- A `raw_counts.json` fájlok **nem az eredeti futtató gépről** származnak: a
+  független ellenőrzés kérte le őket közvetlenül az IBM Quantum API-ból, és a
+  `job_meta.json` `shuffle_order`-je alapján állította vissza az eredeti
+  sorrendet (ld. a fájlok `source` mezőjét). Az eredeti gépen mentett példányok
+  nincsenek a repóban, így a kettő egyezése innen nem ellenőrizhető.
+- Integritás: mindhárom fájl `job_id`-ja egyezik a `job_meta.json`-nal, az
+  áramkörnevek listájának SHA-256-ja egyezik a beküldés előtt rögzített
+  `pre_shuffle_hash`-sel, és minden áramkör shot-összege stimmel
+  (`src/rawdata.py` ezt minden elemzés előtt ellenőrzi).
+- Az eredményfájlok (`calib_result.json`, `phase*_result.json`) ezekből
+  készültek az offline elemzőkkel: `python3 analyze_phase2.py`,
+  `analyze_phase3.py`, `analyze_phase1b.py` (QPU és token nélkül futnak).
 
-A `.gitignore` kivétele megszűnt, de a fájlok csak azon a gépen léteznek, ahol
-a jobok futottak — onnan kell feltölteni őket (`git add data/ && git commit`).
-Amíg ez nem történik meg, a 2., 3. és 1b fázis ítélete **a repóból nem
-auditálható**; a README-ben szereplő ítéletek a független ellenőrzőtől származnak.
+Újraszámolt számok és eltérések az ellenőrző által közöltektől:
+
+| Fázis | Mennyiség | Ellenőrző | Repo-elemző | Megjegyzés |
+|---|---|---|---|---|
+| 2 | T1 | 382 µs (CI 367–399) | 381,7 µs (CI 362,3–402,1) | A repo CI-je 99%-os (preregisztrált); 95%-on 366–397 jön ki, az ellenőrzőé ennek felel meg |
+| 2 | T2_Hahn, ε | 382 µs; 0,0190 | 381,9 µs; 0,0190 | egyezik |
+| 2 | T2_N (N=1/4/16/64) | 381/231/303/409 µs | 381,3/230,8/303,1/409,3 µs | egyezik |
+| 2 | anomália-küszöb (2·T1_CI_felső) | 798 µs | 804 µs | a CI-szint különbségéből adódik; egyik T2_N sem közelíti meg |
+| 3 | BLP csatolt / kontroll | 0,4190 / 0,0000 | 0,4190 / 0,0000 | egyezik; D-min 0,051 @k=7, újranövés 0,388 @k=14 |
+| 3 | p | < 0,0005 | 0/2000 bootstrap | egyezik |
+| 1b | bit=1, R=8: single/majority/active | 0,499/0,425/0,030 | 0,4990/0,4255/0,0305 | egyezik |
+| 1b | bit=0, aktív kar | ≤ 0,005 | max 0,0055 (R=2: 11/2000) | **fél ezrelékkel túllépi** |
+
+Ítéletek ezekből: 2. fázis TEXTBOOK, 3. fázis TEXTBOOK (visszaáramlás
+megerősítve), 1b TEXTBOOK.
+
+Korlátok, amelyeket az ítélet nem tükröz (nem szépítve):
+
+- **2. fázis, N=4:** az előjeles kontraszt negatívba megy (−0,346), χ²_red = 18,8.
+  Ez koherens forgás, nem exponenciális lecsengés; a 231 µs itt nem
+  értelmezhető koherenciaidőként. Az ítéletet nem érinti (a szabály csak azt
+  nézi, hogy T2_N nem haladja-e meg szignifikánsan a 2·T1-et).
+- **1b:** a single és majority kar körönként 20 µs várakozást tartalmaz, az
+  aktív kar köreiben nincs ilyen késleltetés. A karok teljes időtartama ezért
+  nem azonos; a „0,499 → 0,030" nem azonos tárolási időre vonatkozó
+  összehasonlítás. A preregisztrált teszt (R=max, aktív < single) így is teljesül.
+- **1b p-érték:** a binomiális teszt p-értéke a lebegőpontos pontosság alatt van
+  (0,0-ként jön ki); a `1e54cf8` üzenetében szereplő 1,17e-71 nem reprodukálható.
 
 ## 5. 3. fázis — reset-időtartam
 
