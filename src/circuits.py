@@ -179,12 +179,33 @@ def build_phase2_circuits(qubit: int, N_list: List[int],
 
 # ─── 3. fázis: nem-markovi visszafolyás ──────────────────────────────────────
 
+RESET_DURATION_DT: int = 1500
+"""
+Tipikus reset műveleti idő IBM Heron r2 backenden: ~1500 dt (≈ 333 ns).
+Ezt a konstanst a qubitválasztáskor a backend snapshot-ból kell felülírni
+(ha elérhető: backend_props['reset_duration_dt']).
+A két karban azonos az összes mélység, ha minden lépésben:
+  - kontroll kar: qc.reset(E)                  → ~RESET_DURATION_DT
+  - csatolt kar:  qc.delay(RESET_DURATION_DT)  → azonos hossz, E szabadon fejlődik
+"""
+
+
 def build_phase3_circuits(qubit_S: int, qubit_E: int,
                            phi: float, k_steps: List[int],
-                           with_reset: bool = False) -> List[QuantumCircuit]:
+                           with_reset: bool = False,
+                           reset_duration_dt: int = RESET_DURATION_DT,
+                           ) -> List[QuantumCircuit]:
     """
     3. fázis: S |±⟩ + k × (RXX + RYY) + S X-mérés.
-    with_reset=True → kontroll kar: E reset minden lépés után.
+
+    with_reset=True  → kontroll kar: E reset minden lépés után
+                        (Markov-közelítés: E mindig |0⟩-ba visszaállítva)
+    with_reset=False → csatolt kar: E nincs resetelve, de kompenzáló delay
+                        kerül be, hogy a két kar teljes mélysége azonos legyen.
+
+    reset_duration_dt: a reset tipikus ideje dt egységekben (backend-specifikus).
+    Az értéket a run.py qubitválasztáskor rögzíti a backend snapshot-ból, és
+    átadja ide. Ha nincs adat, az alapértelmezett 1500 dt (≈ 333 ns Heron r2-n).
     """
     circs = []
     arm   = "control" if with_reset else "coupled"
@@ -200,26 +221,41 @@ def build_phase3_circuits(qubit_S: int, qubit_E: int,
                 qc.rxx(phi, 0, 1)
                 qc.ryy(phi, 0, 1)
                 if with_reset:
+                    # Kontroll kar: E visszaállítva |0⟩-ba
                     qc.reset(1)
-                    # Azonos időzítés: üres delay a csatolt karban
-                    # (a nem-with_reset körben nincs reset, de azonos hossz)
+                else:
+                    # Csatolt kar: kompenzáló delay — E szabadon fejlődik,
+                    # de az áramkör mélysége azonos a kontroll karral.
+                    qc.delay(reset_duration_dt, 1, unit="dt")
             # S mérés X-bázisban
             qc.h(0)
             qc.measure(0, 0)
             qc.metadata = {
                 "phase": "3", "arm": arm, "bit": bit,
                 "k_steps": k, "phi": phi,
-                "qubit_S": qubit_S, "qubit_E": qubit_E
+                "qubit_S": qubit_S, "qubit_E": qubit_E,
+                "reset_duration_dt": reset_duration_dt,
             }
             circs.append(qc)
     return circs
 
 
 def build_phase3_all(qubit_S: int, qubit_E: int,
-                      phi: float, k_steps: List[int]) -> List[QuantumCircuit]:
-    """Csatolt + kontroll kar együtt."""
-    return (build_phase3_circuits(qubit_S, qubit_E, phi, k_steps, False) +
-            build_phase3_circuits(qubit_S, qubit_E, phi, k_steps, True))
+                      phi: float, k_steps: List[int],
+                      reset_duration_dt: int = RESET_DURATION_DT,
+                      ) -> List[QuantumCircuit]:
+    """
+    Csatolt + kontroll kar együtt.
+    reset_duration_dt: run.py adja át a backend snapshot alapján.
+    """
+    return (
+        build_phase3_circuits(qubit_S, qubit_E, phi, k_steps,
+                               with_reset=False,
+                               reset_duration_dt=reset_duration_dt) +
+        build_phase3_circuits(qubit_S, qubit_E, phi, k_steps,
+                               with_reset=True,
+                               reset_duration_dt=reset_duration_dt)
+    )
 
 
 # ─── 1b fázis: bit-flip repetition code ──────────────────────────────────────

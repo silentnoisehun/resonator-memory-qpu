@@ -62,3 +62,16 @@ src/config.py:   8d4a1d0f8e3163a054418fdf6c5c46e14cc36d7aa699630b9c5c9420a91622b
 src/circuits.py: bbc879ef9d9808cafebe582a98039985019b9779a162212fb3b7c0e34ad6c3cc
 src/analysis.py: 691d6e6b1415efaa355a0b44a74113d9f2a51e1869703aa8af147fa0f8e7771f
 ```
+## Kiegészítés — 2026-11-11 (commit a javítás után)
+
+**Javított hiba (audit alapján):**
+
+A `src/circuits.py` 3. fázis csatolt karában (`with_reset=False`) hiányzott a kompenzáló delay. A kontroll kar minden lépésben végrehajt egy `qc.reset(1)` műveletet (~1500 dt ≈ 333 ns Heron r2-n), de a csatolt karba nem volt beépítve a megfelelő `qc.delay(reset_duration_dt, 1, unit="dt")`. Ez szisztematikus időbeli aszimmetriát okozott volna a két kar között.
+
+**Javítás:** A `build_phase3_circuits` és `build_phase3_all` függvények kiegészültek a `reset_duration_dt` paraméterrel (alapértelmezés: 1500 dt). A csatolt karba minden lépés után `qc.delay(reset_duration_dt, E_qubit, unit="dt")` kerül — az E qubit szabadon fejlődik, de az áramkör teljes mélysége azonos a kontroll karral.
+
+**Élőrendszeren:** a `run.py` a qubitválasztáskor kiolvasja a `reset` kapu tényleges idejét a backend snapshot-ból (`backend_props.get('reset_duration_dt', 1500)`), és átadja a `build_phase3_all`-nak.
+
+**A dryrun a javítás után is átment:** ✅ TEXTBOOK (3. fázis: BLP_coupled=3.779 >> ctrl_median=0.266, p=0)
+
+**Érintett commit:** `circuits.py` — `RESET_DURATION_DT` konstans + delay kompenzáció a csatolt karban
