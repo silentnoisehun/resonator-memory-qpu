@@ -110,6 +110,48 @@ def select_qubit_chain(snapshot: dict, coupling_map: list,
     return best_chain
 
 
+# ─── Reset-időtartam a backendről ─────────────────────────────────────────────
+
+def get_reset_duration_dt(backend, qubit: int) -> Optional[int]:
+    """
+    A `reset` művelet tényleges időtartama dt egységben az adott qubiten,
+    a backend Target-jéből (backend.target["reset"][(qubit,)].duration, s).
+
+    Visszaad None-t, ha a backend nem közli (nincs `reset` a Targetben,
+    nincs duration, vagy nincs dt). Ilyenkor a hívó a
+    circuits.RESET_DURATION_DT alapértéket (1500 dt) használja — a 3. fázis
+    csatolt karjában a kompenzáló delay ekkor csak közelítő.
+    Csak metaadatot olvas; jobot nem indít.
+    """
+    try:
+        dt  = backend.dt
+        dur = backend.target["reset"][(qubit,)].duration
+        if not dt or dur is None or dur <= 0:
+            return None
+        return int(round(dur / dt))
+    except Exception:
+        return None
+
+
+# ─── Counts kinyerés név szerinti regiszterből ────────────────────────────────
+
+def counts_from_register(databin, register: str) -> dict:
+    """
+    SamplerV2 pub-eredmény (`result[i].data`) egy NÉV SZERINT megadott
+    klasszikus regiszterének counts-a.
+
+    Ha a regiszter hiányzik, KeyError — szándékosan nincs tartalék
+    ("első" / "utolsó" regiszter), mert több regiszteres áramkörnél
+    (1b aktív kar: `anc` + `out`) a találgatás csendben rossz biteket adna.
+    """
+    available = list(databin.keys())
+    if register not in available:
+        raise KeyError(
+            f"A(z) '{register}' klasszikus regiszter hiányzik az eredményből "
+            f"(elérhető: {available}). Az elemzés megáll, nem választ másikat.")
+    return dict(databin[register].get_counts())
+
+
 # ─── Job beküldés ─────────────────────────────────────────────────────────────
 
 def estimate_job_seconds(n_circuits: int, shots: int,

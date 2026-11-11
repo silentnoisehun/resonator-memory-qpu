@@ -2,7 +2,7 @@
 submit_phase1b.py — 1b fázis bit-flip repetition code, éles QPU
 5 szomszédos qubit lánc, ibm_kingston
 """
-import sys, json, time, hashlib, logging
+import os, sys, json, time, hashlib, logging
 import numpy as np
 from pathlib import Path
 
@@ -15,10 +15,13 @@ from config import DEFAULT_CONFIG as cfg
 from circuits import build_phase1b_circuits
 from plan import Plan, shuffle_circuits
 from analysis import judge_phase1b, print_verdict
+from run import counts_from_register
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 
-TOKEN   = "fXrTMlExIJMOX8LjhqjtQo-Hpv3-aaxFCXJHW5wK0y_T"
+# A token SOHA nem kerülhet a repóba: környezeti változóból olvassuk.
+# (A korábban ide beégetett token a git-történetben látszik → vissza kell vonni.)
+TOKEN   = os.environ["IBM_QUANTUM_TOKEN"]
 CRN     = "crn:v1:bluemix:public:quantum-computing:us-east:a/850d7f5ad80c4beab980d2b4bdec250d:38cf48ed-daeb-4efb-b709-c8c25dbbbc7a::"
 BACKEND = "ibm_kingston"
 SHOTS   = cfg.shots_1b   # 2000
@@ -152,16 +155,14 @@ if str(status) not in ("DONE", "JobStatus.DONE"):
 result = job.result()
 counts_shuffled = []
 for i in range(len(result)):
-    db = result[i].data
-    # 1b: több register — az összes bitet összefűzzük
-    all_bits = {}
-    for attr_name, reg in db.items():
-        try:
-            c = reg.get_counts()
-            all_bits = c  # az utolsó (output) register counts-a kell
-        except Exception:
-            pass
-    counts_shuffled.append(all_bits)
+    # A beküldött sorrend i. eleme az eredeti sorrend order[i]. áramköre.
+    name = all_circs_raw[order[i]].name
+    # Regiszter NÉV SZERINT:
+    #   aktív kar   → két regiszter van (anc, out); a végső adatbitek az `out`-ban
+    #   single/majority → egyetlen, alapértelmezett nevű regiszter: `c`
+    # Hiányzó regiszter → KeyError, az elemzés megáll (nincs találgatás).
+    reg_name = "out" if name.startswith("p1b_active_") else "c"
+    counts_shuffled.append(counts_from_register(result[i].data, reg_name))
 
 inv = [0] * n
 for new_i, old_i in enumerate(order):
