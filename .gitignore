@@ -1,5 +1,9 @@
 __pycache__/
 *.pyc
-data/
 *.log
 .env
+
+# A data/ mappa SZÁNDÉKOSAN nincs kizárva: a kísérleti adatok (raw_counts,
+# calib_result, *_result, job_meta, snapshot, plan_sealed) az audit alapjai,
+# verziókezelve kell lenniük. Korábban a `data/` sor miatt a 2., 3. és 1b
+# fázis nyers adatai sosem kerültek fel (ld. CORRECTIONS.md).
